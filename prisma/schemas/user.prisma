@@ -1,0 +1,57 @@
+// ============================================================
+// user.prisma
+// User domain schema — email + password auth only.
+//
+// `is_suspended` is kept as a plain flag with no admin-management
+// model behind it in this template (see AGENTS.md) — AuthService
+// checks it at login time, but nothing currently sets it to true.
+// Wire up an admin flow later if you need one.
+// ============================================================
+
+enum UserRole {
+  CUSTOMER
+  SHOP_OWNER
+  ADMIN
+
+  @@map("user_role")
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+
+  name   String  @db.VarChar(255)
+  email  String  @unique @db.VarChar(255)
+  avatar String? @db.Text
+  /// GCS storage_path for avatar — used for deletion when avatar is replaced.
+  avatar_public_id String? @db.VarChar(1000)
+
+  password String @db.VarChar(255)
+
+  acc_verification_otp String? @db.VarChar(10)
+  acc_verified         Boolean @default(false)
+
+  role UserRole
+
+  /// When true the user cannot log in (checked by AuthService.login).
+  is_suspended Boolean @default(false)
+
+  reset_pass_otp            String?   @db.VarChar(255)
+  reset_pass_otp_expired_at DateTime? @db.Timestamptz
+
+  // ── Email change flow ────────────────────────────────────────────────────────
+  /// New email address awaiting OTP verification before the switch is committed.
+  pending_email                String?   @unique @db.VarChar(255)
+  /// 6-digit OTP sent to pending_email.
+  pending_email_otp            String?   @db.VarChar(10)
+  /// Expiry timestamp for the pending email OTP.
+  pending_email_otp_expired_at DateTime? @db.Timestamptz
+
+  created_at DateTime  @default(now()) @db.Timestamptz
+  updated_at DateTime? @updatedAt @db.Timestamptz
+
+  @@index([email])
+  @@index([role])
+  @@index([is_suspended])
+  @@index([created_at(sort: Desc)])
+  @@map("User")
+}

@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile.dev
+#
+# Development image for hot-reload workflow. Source code is mounted from host
+# via docker-compose.dev.yml volumes at runtime — only what is needed at build
+# time (node_modules + Prisma client) is baked in.
+#
+# Build:
+#   npm run docker:dev:up
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache wget
+
+COPY package*.json ./
+
+RUN npm ci
+
+COPY prisma.config.ts ./
+COPY prisma ./prisma
+
+RUN npx prisma generate
+
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
+
+EXPOSE 8080
+
+CMD ["npm", "run", "start:dev"]

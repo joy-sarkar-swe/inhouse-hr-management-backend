@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+build
+
+# Documentation (not needed at runtime)
+docs
+*.md
+
+# Version control
+.git
+.gitignore
+.github
+
+# Environment
+.env
+.env.*
+.env.example
+
+# Test & coverage
+coverage
+.nyc_output
+test
+
+# IDE & OS
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temp
+.temp
+.tmp
+
+# Prisma
+prisma/seed.ts
+prisma/seeds
+
+# Other
+*.log
+BD_TAILORS.dmm
+AGENTS.md

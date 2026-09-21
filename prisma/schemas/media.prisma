@@ -1,0 +1,55 @@
+// ============================================================
+// media.prisma
+// Media / file-upload tracking domain.
+//
+// Stores metadata for every file uploaded through the GCP Cloud
+// Storage service. One row per file with full provenance — this
+// template only wires up USER_AVATAR, but the shape is intentionally
+// generic: add more MediaEntityType values and a matching nullable
+// FK column as new upload contexts are introduced.
+//
+// Design decisions:
+//  - `storage_path` is the GCS object name (e.g. "users/avatars/uuid.webp")
+//    used for deletion — never store URLs without the path.
+//  - `bucket` stores which GCS bucket holds the file so we can
+//    support multi-bucket setups (dev vs prod) without ambiguity.
+//  - UUID PK — consistent with the rest of the schema.
+// ============================================================
+
+enum MediaEntityType {
+  USER_AVATAR
+
+  @@map("media_entity_type")
+}
+
+model Media {
+  id           String          @id @default(uuid()) @db.Uuid
+
+  // GCS storage details — needed for deletion
+  bucket       String          @db.VarChar(255)
+  storage_path String          @db.VarChar(1000)   // GCS object name
+  public_url   String          @db.Text             // HTTPS CDN/direct URL
+
+  // File metadata
+  file_name    String          @db.VarChar(500)
+  mime_type    String          @db.VarChar(100)
+  size_bytes   BigInt
+
+  // Context
+  entity_type  MediaEntityType
+  sort_order   Int             @default(0)          // for multi-image ordering
+
+  /// Owning user. Not a formal Prisma relation (deliberately loose FK, no
+  /// @relation) so future entity types can reuse this table without a schema
+  /// migration for every new owner kind — application layer enforces the link.
+  user_id      String?         @db.Uuid
+
+  // Audit
+  created_at   DateTime        @default(now()) @db.Timestamptz
+  updated_at   DateTime?       @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@index([entity_type])
+  @@index([bucket, storage_path])
+  @@map("Media")
+}
