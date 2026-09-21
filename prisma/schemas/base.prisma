@@ -1,0 +1,17 @@
+// ============================================================
+// base.prisma
+// Datasource + generator config — imported by all sub-schemas.
+// This is the single source of truth for DB connection and
+// client generation settings. All feature schemas reference
+// this file when combined via prisma-merge.
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["prismaSchemaFolder"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
