@@ -3,6 +3,7 @@
  * @module employee-service
  */
 import {
+  BadRequestException,
   Body, Controller, Get, Param, Patch, Post,
   Query, UseGuards,
 } from '@nestjs/common';
@@ -79,22 +80,54 @@ export class EmployeeController {
   // ── Employee self-service routes ───────────────────────────────────────────
 
   @Get('me/profile')
-  @Roles('employee')
-  @ApiOperation({ summary: 'Get own profile (employee)' })
+  @Roles('employee', 'hr')
+  @ApiOperation({ summary: 'Get own profile' })
   async getMyProfile(@CurrentUser() user: AuthUser) {
-    if (!user.employeeId) {
-      return null;
+    if (user.employeeId) {
+      try {
+        const emp = await this.employeeService.findByDbId(user.employeeId);
+        if (emp) return emp;
+      } catch (err) {
+        // Fallback search below
+      }
     }
-    return this.employeeService.findByDbId(user.employeeId);
+    if (user.id) {
+      try {
+        const emp = await this.employeeService.findEmployeeByUserId(user.id);
+        if (emp) return emp;
+      } catch (err) {
+        // Fallback search below
+      }
+    }
+    if (user.email) {
+      try {
+        return await this.employeeService.findById(user.email);
+      } catch (err) {
+        return null;
+      }
+    }
+    return null;
   }
 
   @Patch('me/profile')
-  @Roles('employee')
-  @ApiOperation({ summary: 'Update own profile — phone/address only (employee)' })
+  @Roles('employee', 'hr')
+  @ApiOperation({ summary: 'Update own profile — name/phone/address' })
   async updateMyProfile(
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateMyProfileDto,
   ) {
-    return this.employeeService.updateMyProfile(user.employeeId!, dto);
+    let empDbId = user.employeeId;
+    if (!empDbId && user.id) {
+      const emp = await this.employeeService.findEmployeeByUserId(user.id);
+      if (emp) empDbId = emp.id;
+    }
+    if (!empDbId && user.email) {
+      const emp = await this.employeeService.findById(user.email);
+      if (emp) empDbId = (emp as any).dbId || (emp as any).id;
+    }
+    if (!empDbId) {
+      throw new BadRequestException('Employee record not found for user.');
+    }
+    return this.employeeService.updateMyProfile(empDbId, dto);
   }
 }

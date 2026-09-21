@@ -3,7 +3,6 @@
  * @module employee-service
  */
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -167,11 +166,23 @@ export class EmployeeService {
     delete updateData.password;
 
     const updated = await this.employeeDAO.update(dbId, updateData);
+    if (dto.name && updated.userId) {
+      await this.prisma.user.update({
+        where: { id: updated.userId },
+        data: { name: dto.name },
+      });
+    }
     return mapEmployeeOut(updated);
   }
 
   async updateMyProfile(employeeDbId: string, dto: UpdateMyProfileDto) {
     const updated = await this.employeeDAO.update(employeeDbId, dto as any);
+    if (dto.name && updated.userId) {
+      await this.prisma.user.update({
+        where: { id: updated.userId },
+        data: { name: dto.name },
+      });
+    }
     return mapEmployeeOut(updated);
   }
 
