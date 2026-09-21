@@ -53,6 +53,9 @@ export class CreateEmployeeDto {
 }
 
 export class UpdateEmployeeDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() dbId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() email?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
@@ -68,9 +71,14 @@ export class UpdateEmployeeDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Type(() => Number) breakMinutes?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() joinDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() notes?: string;
+  @ApiPropertyOptional() @IsOptional() leaveBalances?: any;
+  @ApiPropertyOptional() @IsOptional() leaveUsed?: any;
+  @ApiPropertyOptional() @IsOptional() role?: any;
+  @ApiPropertyOptional() @IsOptional() password?: any;
 }
 
 export class UpdateMyProfileDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
 }

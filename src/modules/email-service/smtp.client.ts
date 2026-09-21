@@ -28,6 +28,8 @@ export class SmtpClient implements OnModuleInit, OnModuleDestroy {
   private readonly transporter: Transporter = nodemailer.createTransport({
     host: config.MAIL_HOST,
     port: config.MAIL_PORT,
+    secure: config.MAIL_PORT === 465, // true only for port 465, false for 587 STARTTLS
+    requireTLS: config.MAIL_PORT === 587, // enforce STARTTLS upgrade on port 587
     auth: { user: config.MAIL_USER, pass: config.MAIL_PASS },
   });
 
@@ -60,10 +62,12 @@ export class SmtpClient implements OnModuleInit, OnModuleDestroy {
    * @returns Nodemailer `SentMessageInfo` on success.
    */
   async sendMail(options: SendMailOptions): Promise<SentMessageInfo> {
+    // Only skip real SMTP if credentials are genuinely missing or still set to placeholder defaults.
     const isPlaceholderPass =
       !config.MAIL_PASS ||
       config.MAIL_PASS === 'your_email_app_password' ||
-      config.MAIL_USER?.includes('example.com');
+      !config.MAIL_USER ||
+      config.MAIL_USER === 'your_email@example.com';
 
     const toStr = typeof options.to === 'string' ? options.to : JSON.stringify(options.to);
     const contentStr = typeof options.text === 'string' ? options.text : (typeof options.html === 'string' ? options.html : JSON.stringify(options.html));
