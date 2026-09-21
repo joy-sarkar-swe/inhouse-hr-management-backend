@@ -1,0 +1,42 @@
+// ============================================================
+// leave.prisma
+// Leave requests — submitted by employees, reviewed by HR.
+// ============================================================
+
+enum LeaveStatus {
+  Pending
+  Approved
+  Rejected
+  Cancelled
+
+  @@map("leave_status")
+}
+
+model LeaveRequest {
+  id           String      @id @default(uuid()) @db.Uuid
+  employeeId   String      @db.Uuid
+  employee     Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  leaveTypeId  String      @db.VarChar(50)   // e.g. "sick", "casual", "annual"
+  type         String      @db.VarChar(100)  // human label e.g. "Sick Leave"
+
+  startDate    String      @db.VarChar(10)   // YYYY-MM-DD
+  endDate      String      @db.VarChar(10)   // YYYY-MM-DD
+  days         Int
+
+  reason       String      @db.Text
+  status       LeaveStatus @default(Pending)
+
+  submittedAt  DateTime    @default(now()) @db.Timestamptz
+  reviewedBy   String?     @db.VarChar(255)
+  reviewNote   String?     @db.Text
+
+  createdAt    DateTime    @default(now()) @db.Timestamptz
+  updatedAt    DateTime?   @updatedAt @db.Timestamptz
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate])
+  @@index([submittedAt(sort: Desc)])
+  @@map("LeaveRequest")
+}

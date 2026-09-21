@@ -26,8 +26,8 @@ import {
   MinLength,
 } from 'class-validator';
 
-/** Roles that are allowed at registration time (ADMIN is provisioned out-of-band). */
-const REGISTERABLE_ROLES = [UserRole.CUSTOMER, UserRole.SHOP_OWNER] as const;
+/** Roles that are allowed at registration time. */
+const REGISTERABLE_ROLES = [UserRole.HR, UserRole.EMPLOYEE] as const;
 
 export class RegisterDto {
   @ApiProperty({
@@ -74,10 +74,10 @@ export class RegisterDto {
   password!: string;
 
   @ApiProperty({
-    example: UserRole.CUSTOMER,
+    example: UserRole.EMPLOYEE,
     enum: REGISTERABLE_ROLES,
     description:
-      'Account role. ADMIN accounts cannot be self-registered via this endpoint.',
+      'Account role.',
   })
   @IsEnum(REGISTERABLE_ROLES, {
     message: `role must be one of: ${REGISTERABLE_ROLES.join(', ')}`,

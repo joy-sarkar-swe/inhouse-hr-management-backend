@@ -260,11 +260,23 @@ export class AuthService {
       throw new UnauthorizedException(M.ACCOUNT_SUSPENDED);
     }
 
+    const lowerRole = (user.role as string).toLowerCase() as 'hr' | 'employee';
+
+    // Fetch the linked Employee record for EMPLOYEE role users
+    let employeeId: string | undefined;
+    if (lowerRole === 'employee') {
+      const empRecord = await (this.userService as any).findEmployeeByUserId?.(user.id);
+      if (empRecord) {
+        employeeId = empRecord.id;
+      }
+    }
+
     const payload = {
       sub: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: lowerRole,
+      ...(employeeId ? { employeeId } : {}),
     };
 
     const sessionId = crypto.randomUUID();
@@ -301,7 +313,12 @@ export class AuthService {
         refresh_token: refreshKey,
         token_type: 'Bearer' as const,
         expires_in: config.JWT_EXPIRES_IN,
-        user: { email: user.email, fullName: user.name, role: user.role },
+        user: {
+          email: user.email,
+          fullName: user.name,
+          role: lowerRole,
+          ...(employeeId ? { employeeId } : {}),
+        },
       },
     };
   }

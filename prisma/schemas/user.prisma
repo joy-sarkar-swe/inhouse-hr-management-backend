@@ -1,17 +1,12 @@
 // ============================================================
 // user.prisma
 // User domain schema — email + password auth only.
-//
-// `is_suspended` is kept as a plain flag with no admin-management
-// model behind it in this template (see AGENTS.md) — AuthService
-// checks it at login time, but nothing currently sets it to true.
-// Wire up an admin flow later if you need one.
+// Roles: HR (admin) | EMPLOYEE (staff)
 // ============================================================
 
 enum UserRole {
-  CUSTOMER
-  SHOP_OWNER
-  ADMIN
+  HR
+  EMPLOYEE
 
   @@map("user_role")
 }

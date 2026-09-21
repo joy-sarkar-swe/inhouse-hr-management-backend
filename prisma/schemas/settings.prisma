@@ -1,0 +1,31 @@
+// ============================================================
+// settings.prisma
+// Company-wide HR settings — exactly one row (singleton).
+// leaveTypes and payrollRules are stored as JSON blobs.
+// ============================================================
+
+model CompanySettings {
+  id                    Int     @id @default(1)
+
+  companyName           String  @default("HRFlow Technologies Ltd.") @db.VarChar(255)
+  companyAddress        String? @db.Text
+  timezone              String  @default("Asia/Dhaka") @db.VarChar(100)
+  currency              String  @default("BDT") @db.VarChar(10)
+
+  /// Array of day-of-week integers: 0=Sun … 6=Sat
+  workingDays           Json    @default("[0,1,2,3,4]")
+  defaultWorkStart      String  @default("10:00") @db.VarChar(5)
+  defaultDailyHours     Int     @default(7)
+  defaultBreakMinutes   Int     @default(60)
+  lateThresholdMinutes  Int     @default(10)
+
+  /// Array of LeaveTypeConfig objects (id, name, annualDays, paid, requiresApproval, maxConsecutiveDays)
+  leaveTypes            Json    @default("[]")
+
+  /// { payableHoursCap: bool, roundToNearestTaka: bool, includeUnpaidLeaveDeduction: bool }
+  payrollRules          Json    @default("{}")
+
+  updatedAt             DateTime? @updatedAt @db.Timestamptz
+
+  @@map("CompanySettings")
+}
