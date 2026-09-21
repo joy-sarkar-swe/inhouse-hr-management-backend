@@ -133,13 +133,7 @@ async function bootstrap() {
    * In production, move origins to env config.
    */
   await app.register(cors, {
-    origin: [
-      (['production', 'staging', 'qa', 'preprod'] as const).includes(
-        config.NODE_ENV as any,
-      )
-        ? config.FRONTEND_URL
-        : 'http://localhost:3000',
-    ],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', config.FRONTEND_URL].filter(Boolean),
 
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
