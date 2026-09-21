@@ -1,0 +1,47 @@
+// ============================================================
+// attendance.prisma
+// Attendance records — one row per employee per day.
+// ============================================================
+
+enum AttendanceStatus {
+  Present
+  Late
+  Absent
+  OnLeave
+  OffDay
+  Holiday
+  UnderTarget
+  TargetMet
+  InProgress
+
+  @@map("attendance_status")
+}
+
+model Attendance {
+  id               String           @id @default(uuid()) @db.Uuid
+  employeeId       String           @db.Uuid
+  employee         Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date             String           @db.VarChar(10)  // YYYY-MM-DD
+  clockIn          String?          @db.VarChar(5)   // HH:MM
+  clockOut         String?          @db.VarChar(5)   // HH:MM
+  breakMinutes     Int              @default(0)
+  activeMinutes    Int              @default(0)
+  status           AttendanceStatus @default(Absent)
+
+  workSummary      String?          @db.Text
+  tasks            String?          @db.Text
+  accomplishments  String?          @db.Text
+  blockers         String?          @db.Text
+
+  manuallyAdjusted Boolean          @default(false)
+
+  createdAt        DateTime         @default(now()) @db.Timestamptz
+  updatedAt        DateTime?        @updatedAt @db.Timestamptz
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@index([status])
+  @@index([employeeId, date(sort: Desc)])
+  @@map("Attendance")
+}

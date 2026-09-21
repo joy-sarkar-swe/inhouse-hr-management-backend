@@ -1,0 +1,75 @@
+// ============================================================
+// employee.prisma
+// HR Employee profile — linked to a User auth identity.
+// One User:One Employee for staff. HR admin has no Employee row.
+// ============================================================
+
+enum EmployeeStatus {
+  Active
+  Probation
+  OnLeave
+  Suspended
+  Resigned
+  Terminated
+
+  @@map("employee_status")
+}
+
+enum EmploymentType {
+  FullTime
+  PartTime
+  Contract
+
+  @@map("employment_type")
+}
+
+model Employee {
+  id             String         @id @default(uuid()) @db.Uuid
+  /// Auth identity — null for employees not yet granted login access.
+  userId         String?        @unique @db.Uuid
+
+  /// Human-readable code like EMP001 — unique, auto-assigned.
+  employeeCode   String         @unique @db.VarChar(20)
+
+  // Personal info
+  name           String         @db.VarChar(255)
+  email          String         @unique @db.VarChar(255)
+  phone          String?        @db.VarChar(30)
+  address        String?        @db.Text
+  dob            String?        @db.VarChar(10)  // YYYY-MM-DD string
+
+  // Role
+  department     String         @db.VarChar(100)
+  designation    String         @db.VarChar(100)
+  status         EmployeeStatus @default(Active)
+  type           EmploymentType @default(FullTime)
+
+  // Pay & schedule
+  hourlyRate     Decimal        @db.Decimal(10, 2)
+  dailyHours     Int            @default(7)
+  weeklyHours    Int            @default(35)
+  workStart      String         @default("10:00") @db.VarChar(5)  // HH:MM
+  breakMinutes   Int            @default(60)
+  joinDate       String         @db.VarChar(10)  // YYYY-MM-DD string
+
+  /// Leave balances per leaveTypeId: { sick: 12, casual: 10, … }
+  leaveBalances  Json           @default("{}")
+  /// Leave days used per leaveTypeId: { sick: 0, casual: 0, … }
+  leaveUsed      Json           @default("{}")
+
+  notes          String?        @db.Text
+
+  // Relations
+  attendance     Attendance[]
+  leaveRequests  LeaveRequest[]
+  payroll        Payroll[]
+
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+  updatedAt      DateTime?      @updatedAt @db.Timestamptz
+
+  @@index([email])
+  @@index([department])
+  @@index([status])
+  @@index([employeeCode])
+  @@map("Employee")
+}

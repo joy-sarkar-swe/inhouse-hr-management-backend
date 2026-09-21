@@ -1,0 +1,52 @@
+// ============================================================
+// payroll.prisma
+// Monthly payroll records — one per employee per month.
+// Calculation is always done server-side.
+// ============================================================
+
+enum PayrollStatus {
+  Draft
+  UnderReview
+  Approved
+  Paid
+  Locked
+
+  @@map("payroll_status")
+}
+
+model Payroll {
+  id               String        @id @default(uuid()) @db.Uuid
+  employeeId       String        @db.Uuid
+  employee         Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  month            String        @db.VarChar(7)  // YYYY-MM
+
+  workedHours      Decimal       @db.Decimal(8, 2)
+  paidLeaveHours   Decimal       @db.Decimal(8, 2)
+  payableHours     Decimal       @db.Decimal(8, 2)
+  hourlyRate       Decimal       @db.Decimal(10, 2)
+
+  baseAmount       Decimal       @db.Decimal(12, 2)
+  paidLeaveAmount  Decimal       @db.Decimal(12, 2)
+  bonus            Decimal       @default(0) @db.Decimal(12, 2)
+  allowances       Decimal       @default(0) @db.Decimal(12, 2)
+  deductions       Decimal       @default(0) @db.Decimal(12, 2)
+  grossSalary      Decimal       @db.Decimal(12, 2)
+  netSalary        Decimal       @db.Decimal(12, 2)
+
+  status           PayrollStatus @default(Draft)
+
+  generatedAt      String        @db.VarChar(10)  // YYYY-MM-DD
+  approvedAt       String?       @db.VarChar(10)
+  paidAt           String?       @db.VarChar(10)
+
+  notes            String?       @db.Text
+
+  createdAt        DateTime      @default(now()) @db.Timestamptz
+  updatedAt        DateTime?     @updatedAt @db.Timestamptz
+
+  @@unique([employeeId, month])
+  @@index([month])
+  @@index([status])
+  @@map("Payroll")
+}

@@ -12,7 +12,6 @@
  */
 import { Body, Controller, Post, UseGuards, UsePipes } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
 import { ApiErrorResponses } from 'src/common/decorators/api-error-response.decorator';
 import { ApiSuccessResponse } from 'src/common/decorators/api-success-response.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -36,7 +35,7 @@ import { EmailService } from '../email.service';
  * It allows for sending single and bulk emails to verify the integration with BullMQ and Nodemailer.
  */
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles('hr')
 @ApiTags('Email Test')
 @Controller({
   path: 'test/email',

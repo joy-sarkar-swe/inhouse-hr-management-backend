@@ -1,0 +1,23 @@
+// ============================================================
+// audit.prisma
+// Audit trail for sensitive HR actions (payroll, approvals, etc.)
+// ============================================================
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorId     String   @db.VarChar(255)   // userId or 'SYSTEM'
+  actorRole   String   @db.VarChar(20)    // 'hr' | 'employee' | 'system'
+  action      String   @db.VarChar(100)   // e.g. 'APPROVE_LEAVE', 'RUN_PAYROLL'
+  entityType  String   @db.VarChar(50)    // e.g. 'LeaveRequest', 'Payroll'
+  entityId    String?  @db.VarChar(255)   // ID of the affected entity
+  payload     Json?                       // sanitized snapshot (no passwords)
+  ipAddress   String?  @db.VarChar(45)
+
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@map("AuditLog")
+}
