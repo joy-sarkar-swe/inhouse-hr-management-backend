@@ -88,7 +88,7 @@ async function main() {
       designation: 'Software Engineer',
       status: 'Active' as const,
       type: 'FullTime' as const,
-      hourlyRate: 750,
+      hourlyRate: 236.5, // 148 hrs/month × ৳236.5 ≈ ৳35,000/month
       dailyHours: 7,
       weeklyHours: 35,
       workStart: '10:00',
@@ -106,7 +106,7 @@ async function main() {
       designation: 'Full-Stack Developer',
       status: 'Active' as const,
       type: 'FullTime' as const,
-      hourlyRate: 700,
+      hourlyRate: 236.5, // 148 hrs/month × ৳236.5 ≈ ৳35,000/month
       dailyHours: 7,
       weeklyHours: 35,
       workStart: '10:00',
@@ -124,7 +124,7 @@ async function main() {
       designation: 'Software Engineer',
       status: 'Active' as const,
       type: 'FullTime' as const,
-      hourlyRate: 800,
+      hourlyRate: 236.5, // 148 hrs/month × ৳236.5 ≈ ৳35,000/month
       dailyHours: 7,
       weeklyHours: 35,
       workStart: '10:00',
@@ -142,7 +142,7 @@ async function main() {
       designation: 'UI/UX Designer',
       status: 'Active' as const,
       type: 'FullTime' as const,
-      hourlyRate: 680,
+      hourlyRate: 236.5, // 148 hrs/month × ৳236.5 ≈ ৳35,000/month
       dailyHours: 7,
       weeklyHours: 35,
       workStart: '10:00',

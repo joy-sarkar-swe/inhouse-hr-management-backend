@@ -2,7 +2,7 @@
  * @fileoverview Leave controller — HR management and employee self-service.
  */
 import {
-  Body, Controller, Get, Param, Patch, Post, Query, UseGuards,
+  Body, Controller, Get, Param, Patch, Post, Query, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
@@ -10,6 +10,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/modules/auth-service/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import type { AuthUser } from 'src/shared/interfaces/auth-user.interface';
+import { PrismaService } from 'src/shared/prisma/prisma.service';
 import { LeaveService } from './leave.service';
 import { SettingsService } from 'src/modules/settings-service/settings.service';
 
@@ -21,7 +22,30 @@ export class LeaveController {
   constructor(
     private readonly leaveService: LeaveService,
     private readonly settingsService: SettingsService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  // ─── Shared helper ────────────────────────────────────────────────────────
+  /**
+   * Resolves the internal Employee UUID for the authenticated user.
+   *
+   * Mirrors AttendanceController.resolveEmployeeDbId: don't trust
+   * `user.employeeId!` blindly — a JWT issued before the login/employeeId
+   * wiring was fixed (or before a future regression of the same class) won't
+   * carry it, and a bare `!` would either throw deep inside Prisma with an
+   * `undefined` id or silently mismatch every "my own records" filter.
+   */
+  private async resolveEmployeeDbId(user: AuthUser): Promise<string> {
+    if (user.employeeId) return user.employeeId;
+
+    const emp = await this.prisma.employee.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (emp) return emp.id;
+
+    throw new UnauthorizedException('No employee record linked to this account.');
+  }
 
   // ── HR routes ──────────────────────────────────────────────────────────────
 
@@ -56,22 +80,25 @@ export class LeaveController {
   @Roles('employee')
   @ApiOperation({ summary: 'Submit a leave request (employee)' })
   async submit(@Body() dto: any, @CurrentUser() user: AuthUser) {
+    const employeeDbId = await this.resolveEmployeeDbId(user);
     const settings = await this.settingsService.get();
     const leaveTypes = (settings as any).leaveTypes ?? [];
-    return this.leaveService.submit(dto, user.employeeId!, leaveTypes);
+    return this.leaveService.submit(dto, employeeDbId, leaveTypes);
   }
 
   @Get('my')
   @Roles('employee')
   @ApiOperation({ summary: 'Get own leave requests (employee)' })
   async getMyLeaves(@CurrentUser() user: AuthUser) {
-    return this.leaveService.findMyLeaves(user.employeeId!);
+    const employeeDbId = await this.resolveEmployeeDbId(user);
+    return this.leaveService.findMyLeaves(employeeDbId);
   }
 
   @Patch(':id/cancel')
   @Roles('employee')
   @ApiOperation({ summary: 'Cancel own pending leave request (employee)' })
   async cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.leaveService.cancel(id, user.employeeId!);
+    const employeeDbId = await this.resolveEmployeeDbId(user);
+    return this.leaveService.cancel(id, employeeDbId);
   }
 }

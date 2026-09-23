@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { JwtAuthGuard } from 'src/modules/auth-service/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import type { AuthUser } from 'src/shared/interfaces/auth-user.interface';
+import { PrismaService } from 'src/shared/prisma/prisma.service';
 import { PayrollService } from './payroll.service';
 
 @ApiTags('Payroll')
@@ -12,7 +13,31 @@ import { PayrollService } from './payroll.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller({ path: 'payroll', version: '1' })
 export class PayrollController {
-  constructor(private readonly payrollService: PayrollService) {}
+  constructor(
+    private readonly payrollService: PayrollService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  // ─── Shared helper ────────────────────────────────────────────────────────
+  /**
+   * Resolves the internal Employee UUID for the authenticated user. See
+   * AttendanceController.resolveEmployeeDbId / LeaveController's copy for why
+   * `user.employeeId!` alone isn't trusted: a JWT issued before the
+   * login/employeeId wiring was fixed won't carry it, and blindly trusting
+   * `undefined` here previously meant `/payroll/my` silently dropped its
+   * employeeId filter and returned every employee's payslips.
+   */
+  private async resolveEmployeeDbId(user: AuthUser): Promise<string> {
+    if (user.employeeId) return user.employeeId;
+
+    const emp = await this.prisma.employee.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (emp) return emp.id;
+
+    throw new UnauthorizedException('No employee record linked to this account.');
+  }
 
   @Get()
   @Roles('hr')
@@ -43,13 +68,15 @@ export class PayrollController {
   @Roles('employee')
   @ApiOperation({ summary: 'Get own payslips (employee)' })
   async getMyPayslips(@CurrentUser() user: AuthUser) {
-    return this.payrollService.findMyPayslips(user.employeeId!);
+    const employeeDbId = await this.resolveEmployeeDbId(user);
+    return this.payrollService.findMyPayslips(employeeDbId);
   }
 
   @Get('my/:id')
   @Roles('employee')
   @ApiOperation({ summary: 'Get specific payslip (employee)' })
   async getMyPayslip(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.payrollService.findMyPayslip(id, user.employeeId!);
+    const employeeDbId = await this.resolveEmployeeDbId(user);
+    return this.payrollService.findMyPayslip(id, employeeDbId);
   }
 }
