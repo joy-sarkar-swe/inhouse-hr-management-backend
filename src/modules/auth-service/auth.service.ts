@@ -22,6 +22,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { RedisTokenService } from 'src/common/redis/redis-service/auth/redis-token.service';
+import { EmployeeService } from 'src/modules/employee-service/employee.service';
 import { UserService } from 'src/modules/user-service/user.service';
 import config from 'src/shared/config/app.config';
 import type { AuthUser } from 'src/shared/interfaces/auth-user.interface';
@@ -102,6 +103,7 @@ export class AuthService {
 
   constructor(
     private readonly userService: UserService,
+    private readonly employeeService: EmployeeService,
     private readonly jwtService: JwtService,
     private readonly redisTokenService: RedisTokenService,
     private readonly emailService: EmailService,
@@ -262,10 +264,22 @@ export class AuthService {
 
     const lowerRole = (user.role as string).toLowerCase() as 'hr' | 'employee';
 
-    // Fetch the linked Employee record for EMPLOYEE role users
+    // Fetch the linked Employee record for EMPLOYEE role users.
+    //
+    // This used to call `(this.userService as any).findEmployeeByUserId?.(...)`
+    // — but that method only ever existed on EmployeeService, never on
+    // UserService. The `as any` + `?.()` silenced the type error instead of
+    // surfacing it, so this always evaluated to `undefined` and no employee's
+    // JWT ever carried `employeeId`. Every endpoint that trusted
+    // `user.employeeId` without an independent DB fallback broke as a result:
+    // leave submission/cancel crashed or 403'd, and /leave/my and /payroll/my
+    // silently dropped their employeeId filter and returned every employee's
+    // records instead of just the caller's own.
     let employeeId: string | undefined;
     if (lowerRole === 'employee') {
-      const empRecord = await (this.userService as any).findEmployeeByUserId?.(user.id);
+      const empRecord = await this.employeeService.findEmployeeByUserId(
+        user.id,
+      );
       if (empRecord) {
         employeeId = empRecord.id;
       }
@@ -580,6 +594,7 @@ export class AuthService {
       email: string | null;
       name: string;
       role: string;
+      employeeId?: string;
       type?: string;
     };
     try {
@@ -606,11 +621,16 @@ export class AuthService {
     const newAccessKey = `${userId}:${newSessionId}`;
     const newRefreshKey = `refresh:${userId}:${newSessionId}`;
 
+    // Carry `employeeId` forward across the rotation — omitting it here would
+    // silently strip it from every session the moment it refreshes (every
+    // 15 minutes via JWT_EXPIRES_IN), even for a session that got it
+    // correctly at login. See the comment in `login()` above.
     const jwtPayload = {
       sub: userId,
       email: decoded.email,
       name: decoded.name,
       role: decoded.role,
+      ...(decoded.employeeId ? { employeeId: decoded.employeeId } : {}),
     };
 
     const [newAccessJwt, newRefreshJwt] = await Promise.all([
@@ -651,6 +671,7 @@ export class AuthService {
           email: decoded.email,
           fullName: decoded.name,
           role: decoded.role,
+          ...(decoded.employeeId ? { employeeId: decoded.employeeId } : {}),
         },
       },
     };

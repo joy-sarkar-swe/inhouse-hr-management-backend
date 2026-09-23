@@ -137,10 +137,15 @@ export class PayrollService {
 
   /**
    * Run payroll for a given month (YYYY-MM).
-   * Idempotent: skips employees already processed.
-   * All calculation happens server-side from DB data.
+   * Idempotent per employee, but not a one-shot: a record still sitting in
+   * Draft gets recalculated from the latest attendance/leave data every time
+   * this runs (HR may legitimately run it early, then again after more
+   * attendance/leave lands before finalising). Only once a record has moved
+   * past Draft — Under Review, Approved, Paid, Locked — is it left alone, so
+   * finalised payroll is never silently rewritten. All calculation happens
+   * server-side from DB data.
    */
-  async runPayroll(month: string): Promise<{ created: number; skipped: number; records: any[] }> {
+  async runPayroll(month: string): Promise<{ created: number; updated: number; skipped: number; records: any[] }> {
     const settings: any = await this.settingsService.get();
     const [yearStr, monthStr] = month.split('-');
     const year = parseInt(yearStr);
@@ -158,13 +163,16 @@ export class PayrollService {
     });
 
     const today = new Date().toISOString().slice(0, 10);
-    const newRecords: any[] = [];
+    const touchedIds: string[] = [];
+    let created = 0;
+    let updated = 0;
     let skipped = 0;
 
     for (const emp of employees) {
-      // Idempotency check
-      const exists = await this.dao.findByEmployeeAndMonth(emp.id, month);
-      if (exists) { skipped++; continue; }
+      const existing = await this.dao.findByEmployeeAndMonth(emp.id, month);
+      // A record HR has already moved past Draft represents a decision —
+      // never recalculate it out from under them on a re-run.
+      if (existing && existing.status !== 'Draft') { skipped++; continue; }
 
       // Get attendance for this month
       const monthAttendance = await this.prisma.attendance.findMany({
@@ -190,46 +198,70 @@ export class PayrollService {
         })
         .reduce((s: number, l: any) => s + l.days, 0);
 
+      const rawWorkedHours = workedHours;
       const dailyHours = emp.dailyHours ?? 7;
-      const paidLeaveHours = paidLeaveDays * dailyHours;
+      const paidLeaveHoursRaw = paidLeaveDays * dailyHours;
 
       const empTarget = expectedMonthlyHours(year, monthNum, workingDays, dailyHours);
 
-      const payableHours = payrollRules.payableHoursCap
-        ? Math.min(workedHours + paidLeaveHours, empTarget)
-        : workedHours + paidLeaveHours;
+      // Fixed monthly salary model: total pay never exceeds the month's
+      // target hours × rate, no matter how much extra time was worked —
+      // "overwork doesn't pay more." Worked hours are capped at the target
+      // first (real time at work takes priority over leave credit for
+      // whatever room is left in the target), then paid leave fills
+      // whatever's left, same as before. With the cap setting off, both are
+      // paid in full uncapped (true hourly-with-overtime pay), so this stays
+      // configurable per payrollRules.payableHoursCap rather than hardcoded.
+      const payableWorkedHours = payrollRules.payableHoursCap
+        ? Math.min(rawWorkedHours, empTarget)
+        : rawWorkedHours;
+      const paidLeaveHours = payrollRules.payableHoursCap
+        ? Math.max(0, Math.min(paidLeaveHoursRaw, empTarget - payableWorkedHours))
+        : paidLeaveHoursRaw;
+
+      // workedHours on the Payroll record means "hours this pay was based
+      // on" (this is a pay record, not an attendance log — the Attendance
+      // module already holds the true uncapped per-day time if HR needs to
+      // audit real overtime patterns separately from what was paid).
+      const workedHoursForPay = payableWorkedHours;
+      const payableHours = payableWorkedHours + paidLeaveHours;
 
       const hourlyRate = Number(emp.hourlyRate);
-      const baseAmount = Math.round(workedHours * hourlyRate);
+      const baseAmount = Math.round(workedHoursForPay * hourlyRate);
       const paidLeaveAmount = Math.round(paidLeaveHours * hourlyRate);
-      const grossSalary = baseAmount + paidLeaveAmount;
-      const netSalary = grossSalary;
 
-      const rec = await this.dao.create({
-        employeeId: emp.id,
-        month,
-        workedHours,
-        paidLeaveHours,
-        payableHours,
-        hourlyRate,
-        baseAmount,
-        paidLeaveAmount,
-        bonus: 0,
-        allowances: 0,
-        deductions: 0,
-        grossSalary,
-        netSalary,
-        status: 'Draft',
-        generatedAt: today,
-        notes: '',
-      });
+      // A re-run recalculating an existing Draft must not wipe out any
+      // bonus/allowances/deductions HR already entered on it — preserve
+      // them and fold them back into gross/net the same way updateRecord
+      // does, instead of resetting everything to 0.
+      const bonus = existing ? Number(existing.bonus) : 0;
+      const allowances = existing ? Number(existing.allowances) : 0;
+      const deductions = existing ? Number(existing.deductions) : 0;
+      const grossSalary = baseAmount + paidLeaveAmount + bonus + allowances;
+      const netSalary = grossSalary - deductions;
 
-      newRecords.push(rec);
+      const fields = {
+        workedHours: workedHoursForPay, paidLeaveHours, payableHours, hourlyRate,
+        baseAmount, paidLeaveAmount, bonus, allowances, deductions,
+        grossSalary, netSalary, generatedAt: today,
+      };
+
+      let rec: any;
+      if (existing) {
+        rec = await this.dao.update(existing.id, fields);
+        updated++;
+      } else {
+        rec = await this.dao.create({
+          employeeId: emp.id, month, ...fields, status: 'Draft', notes: '',
+        });
+        created++;
+      }
+      touchedIds.push(rec.id);
     }
 
-    this.logger.log(`Payroll run for ${month}: ${newRecords.length} created, ${skipped} skipped`);
-    const fullRecords = await Promise.all(newRecords.map(r => this.dao.findById(r.id)));
-    return { created: newRecords.length, skipped, records: fullRecords.map(r => this.mapOut(r)) };
+    this.logger.log(`Payroll run for ${month}: ${created} created, ${updated} updated, ${skipped} skipped`);
+    const fullRecords = await Promise.all(touchedIds.map(id => this.dao.findById(id)));
+    return { created, updated, skipped, records: fullRecords.map(r => this.mapOut(r)) };
   }
 
   async updateRecord(id: string, dto: {

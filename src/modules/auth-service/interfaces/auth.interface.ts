@@ -11,6 +11,13 @@ export type UserPayload = {
   fullName: string;
   /** User role. */
   role: string;
+  /**
+   * Internal Employee UUID — only present for EMPLOYEE-role users with a
+   * linked Employee record. Mirrored into the JWT so employee-scoped routes
+   * (leave, payroll self-service) can resolve "my own records" without an
+   * extra DB round trip.
+   */
+  employeeId?: string;
 };
 
 /**
