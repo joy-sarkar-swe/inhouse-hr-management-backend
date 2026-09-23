@@ -180,6 +180,35 @@ export class AttendanceController {
       };
     }
 
+    // Auto-close any InProgress session left over from an earlier day before
+    // opening today's. Without this, an employee who never clocks out
+    // (laptop closed, tab left open across midnight) leaves that day's row
+    // stuck at InProgress/0 minutes forever — the frontend's own stale-
+    // session guard resets the *local* timer once it notices the date
+    // rolled over, but has no way to tell the backend the old day is done,
+    // so the DB-side record was orphaned with no path back to it. We never
+    // invent hours for the abandoned day (no reliable signal for how long
+    // they actually worked survives the gap) — we just close it out and
+    // flag it clearly so HR can fill in the real numbers with the employee.
+    const danglingSessions = await this.prisma.attendance.findMany({
+      where: {
+        employeeId: employeeDbId,
+        status: 'InProgress',
+        date: { not: body.date },
+      },
+    });
+    for (const stale of danglingSessions) {
+      await this.prisma.attendance.update({
+        where: { id: stale.id },
+        data: {
+          status: 'UnderTarget',
+          workSummary:
+            stale.workSummary ||
+            'Auto-closed: no clock-out was recorded for this day. Verify actual hours with the employee and adjust via HR attendance edit.',
+        },
+      });
+    }
+
     // Create the InProgress record with real clock-in time
     const rec = await this.prisma.attendance.create({
       data: {
